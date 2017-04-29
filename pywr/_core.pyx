@@ -6,7 +6,11 @@ cimport numpy as np
 import pandas as pd
 import warnings
 
+cdef extern from "numpy/npy_math.h":
+    bint npy_isnan(double x)
+
 cdef double inf = float('inf')
+cdef double nan = float('nan')
 
 cdef class Scenario:
     """ Represents a scenario in the model.
@@ -717,6 +721,7 @@ cdef class Storage(AbstractStorage):
     """
     def __cinit__(self, ):
         self._initial_volume = 0.0
+        self._initial_volume_pc = nan
         self._min_volume = 0.0
         self._max_volume = 0.0
         self._cost = 0.0
@@ -759,11 +764,24 @@ cdef class Storage(AbstractStorage):
         return self._cost_param.get_value(scenario_index)
 
     property initial_volume:
-        def __get__(self, ):
+        def __get__(self):
+            if not npy_isnan(self._initial_volume_pc):
+                return None
             return self._initial_volume
 
         def __set__(self, value):
+            self._initial_volume_pc = nan
             self._initial_volume = value
+
+    property initial_volume_pc:
+        def __get__(self):
+            if npy_isnan(self._initial_volume_pc):
+                return None
+            return self._initial_volume_pc
+        
+        def __set__(self, value):
+            self._initial_volume = nan
+            self._initial_volume_pc = value
 
     property min_volume:
         def __get__(self):
@@ -837,10 +855,26 @@ cdef class Storage(AbstractStorage):
         cdef ScenarioIndex si
 
         for i, si in enumerate(self.model.scenarios.combinations):
-            self._volume[i] = self._initial_volume
             # Ensure variable maximum volume is taken in to account
             if self._max_volume_param is not None:
+                print("mxv param", self._max_volume_param)
                 mxv = self._max_volume_param.get_value(si)
+                print("mxv param value", mxv)
+            
+            # reset the initial volume
+            if not npy_isnan(self._initial_volume_pc):
+                self._volume[i] = self._initial_volume_pc * mxv
+            elif not npy_isnan(self._initial_volume):
+                self._volume[i] = self._initial_volume
+            else:
+                raise ValueError("Initial volume of reservoir \"{}\" is undefined.".format(self.name))
+            
+            print('mxv', mxv)
+            print(self._initial_volume)
+            print(self._initial_volume_pc)
+            print('_volume', np.array(self._volume))
+
+            # update the current volume as a percentage
             try:
                 self._current_pc[i] = self._volume[i] / mxv
             except ZeroDivisionError:

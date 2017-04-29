@@ -10,6 +10,8 @@ import pandas
 from numpy.testing import assert_allclose
 
 import pywr.core
+from pywr.core import Scenario
+from pywr.parameters import load_parameter
 from pywr.model import Model, ModelStructureError, ModelResult
 from pywr.nodes import Storage, Input, Output, Link
 import pywr.solvers
@@ -397,6 +399,42 @@ def test_new_storage(solver):
     assert_allclose(splitter.volume, [0], atol=1e-7)  # New volume is zero
     assert_allclose(demand1.flow, [20], atol=1e-7)
     assert_allclose(demand2.flow, [30], atol=1e-7)
+
+@pytest.mark.parametrize("max_volume,init_value,init_percent,expected", [
+    [100, 50, None, 50],
+    [100, None, 0.5, 50],
+    [{"type": "constant", "value": 100}, 50, None, 50],
+    [{"type": "constant", "value": 100}, None, 0.5, 50],
+    # [{"type": "ConstantScenarioParameter", "scenario": "test", "values": [100, 50, 0]}, None, 0.5, [50, 25, 0]],
+])
+def test_storage_initial_volume_percent(solver, max_volume, init_value, init_percent, expected):
+    model = Model(solver=solver, start="1920-01-01", end="1920-01-01")
+    
+    try:
+        scenario = Scenario(model, "test", size=len(expected))
+    except TypeError:
+        pass
+    
+    # if isinstance(max_volume, dict):
+    #     max_volume = load_parameter(model, max_volume)
+    
+    from pywr.parameters import ConstantParameter
+    max_volume = ConstantParameter(model, value=100)
+
+    if init_value is not None:
+        storage = Storage(model, "storage", num_inputs=1, num_outputs=0, cost=0, max_volume=max_volume, initial_volume=init_value)
+    else:
+        storage = Storage(model, "storage", num_inputs=1, num_outputs=0, cost=0, max_volume=max_volume, initial_volume_pc=init_percent)
+    output = Output(model, "output", max_flow=500, cost=-1000)
+    storage.connect(output)
+    
+    print(max_volume, storage.initial_volume, storage.initial_volume_pc)
+    
+    model.check()
+    
+    res = model.run()
+    assert(res.timesteps == 1)
+    assert_allclose(output.flow, expected)
 
 
 def test_virtual_storage(solver):

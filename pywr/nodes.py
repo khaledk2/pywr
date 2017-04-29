@@ -301,7 +301,8 @@ class Storage(with_metaclass(NodeMeta, Drawable, Connectable, _core.Storage)):
         if min_volume is None:
             min_volume = 0.0
         max_volume = pop_kwarg_parameter(kwargs, 'max_volume', 0.0)
-        initial_volume = kwargs.pop('initial_volume', 0.0)
+        initial_volume = kwargs.pop('initial_volume', None)
+        initial_volume_pc = kwargs.pop('initial_volume_pc', None)
         cost = pop_kwarg_parameter(kwargs, 'cost', 0.0)
 
         position = kwargs.pop("position", {})
@@ -318,7 +319,10 @@ class Storage(with_metaclass(NodeMeta, Drawable, Connectable, _core.Storage)):
 
         self.min_volume = min_volume
         self.max_volume = max_volume
-        self.initial_volume = initial_volume
+        if initial_volume_pc is not None:
+            self.initial_volume_pc = initial_volume_pc
+        elif initial_volume is not None:
+            self.initial_volume = initial_volume
         self.cost = cost
         self.position = position
 
