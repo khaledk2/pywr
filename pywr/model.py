@@ -593,8 +593,6 @@ class Model(object):
         last run."""
         self.scenarios.setup()
         length_changed = self.timestepper.reset()
-        for node in self.graph.nodes():
-            node.setup(self)
 
         components = self.flatten_component_tree(rebuild=True)
         for component in components:
@@ -607,11 +605,7 @@ class Model(object):
     def reset(self, start=None):
         """Reset model to it's initial conditions"""
         length_changed = self.timestepper.reset(start=start)
-        for node in self.nodes:
-            if length_changed:
-                node.setup(self)
-            node.reset()
-
+        
         components = self.flatten_component_tree(rebuild=False)
         for component in components:
             if length_changed:
@@ -630,8 +624,6 @@ class Model(object):
         --------
         `Model.step`
         """
-        for node in self.graph.nodes():
-            node.before(self.timestep)
         components = self.flatten_component_tree(rebuild=False)
         for component in components:
             component.before()
@@ -640,15 +632,11 @@ class Model(object):
                 component.calc_values(self.timestep)
 
     def after(self):
-        for node in self.graph.nodes():
-            node.after(self.timestep)
         components = self.flatten_component_tree(rebuild=False)
         for component in components:
             component.after()
 
     def finish(self):
-        for node in self.graph.nodes():
-            node.finish()
         components = self.flatten_component_tree(rebuild=False)
         for component in components:
             component.finish()

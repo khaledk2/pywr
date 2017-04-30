@@ -1,4 +1,5 @@
 from .parameters._parameters cimport Parameter
+from ._component cimport Component
 
 
 cdef class Scenario:
@@ -35,29 +36,27 @@ cdef class Timestep:
 cdef class Domain:
     cdef object name
 
-cdef class AbstractNode:
+cdef class AbstractNode(Component):
     cdef double[:] _prev_flow
     cdef double[:] _flow
     cdef list _recorders
     cdef Domain _domain
     cdef AbstractNode _parent
     cdef object _model
-    cdef object _name
     cdef bint _allow_isolated
     cdef public bint virtual
     cdef public object __data
-    cdef public basestring comment
 
     cdef Parameter _cost_param
     cpdef double get_cost(self, Timestep ts, ScenarioIndex scenario_index) except? -1
 
-    cpdef setup(self, model)
-    cpdef reset(self)
-    cpdef before(self, Timestep ts)
+    #cpdef setup(self, model)
+    #cpdef reset(self)
+    #cpdef before(self)
     cpdef commit(self, int scenario_index, double value)
     cpdef commit_all(self, double[:] value)
-    cpdef after(self, Timestep ts)
-    cpdef finish(self)
+    #cpdef after(self)
+    #cpdef finish(self)
     cpdef check(self,)
 
 cdef class Node(AbstractNode):

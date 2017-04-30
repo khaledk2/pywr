@@ -568,14 +568,14 @@ class PiecewiseLink(Node):
             #for link in self.sublinks:
             #    yield link
 
-    def after(self, timestep):
+    def after(self):
         """
         Set total flow on this link as sum of sublinks
         """
         for lnk in self.sublinks:
             self.commit_all(lnk.flow)
         # Make sure save is done after setting aggregated flow
-        super(PiecewiseLink, self).after(timestep)
+        super(PiecewiseLink, self).after()
 
     @classmethod
     def load(cls, data, model):

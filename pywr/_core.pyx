@@ -241,7 +241,7 @@ cdef class Domain:
     def __init__(self, name):
         self.name = name
 
-cdef class AbstractNode:
+cdef class AbstractNode(Component):
     """ Base class for all nodes in Pywr.
 
     This class is not intended to be used directly.
@@ -251,9 +251,7 @@ cdef class AbstractNode:
         self.virtual = False
 
     def __init__(self, model, name, comment=None, **kwargs):
-        self._model = model
-        self.name = name
-        self.comment = comment
+        Component.__init__(self, model, name, comment)
 
         self._parent = kwargs.pop('parent', None)
         self._domain = kwargs.pop('domain', None)
@@ -315,10 +313,10 @@ cdef class AbstractNode:
         """The recorder for the node, e.g. a NumpyArrayRecorder
         """
         def __get__(self):
-            return self._model
+            return self.model
 
         def __set__(self, value):
-            self._model = value
+            self.model = value
 
     property domain:
         def __get__(self):
@@ -360,9 +358,9 @@ cdef class AbstractNode:
         else:
             return '<{} "{}">'.format(self.__class__.__name__, hex(id(self)))
 
-    cpdef setup(self, model):
+    cpdef setup(self):
         """Called before the first run of the model"""
-        cdef int ncomb = len(model.scenarios.combinations)
+        cdef int ncomb = len(self.model.scenarios.combinations)
         self._flow = np.empty(ncomb, dtype=np.float64)
         self._prev_flow = np.zeros(ncomb, dtype=np.float64)
 
@@ -372,7 +370,7 @@ cdef class AbstractNode:
         for i in range(self._flow.shape[0]):
             self._flow[i] = 0.0
 
-    cpdef before(self, Timestep ts):
+    cpdef before(self):
         """Called at the beginning of the timestep"""
         cdef int i
         for i in range(self._flow.shape[0]):
@@ -388,7 +386,7 @@ cdef class AbstractNode:
         for i in range(self._flow.shape[0]):
             self._flow[i] += value[i]
 
-    cpdef after(self, Timestep ts):
+    cpdef after(self):
         self._prev_flow[:] = self._flow[:]
 
     cpdef finish(self):
@@ -574,10 +572,11 @@ cdef class AggregatedNode(AbstractNode):
             self._nodes = list(value)
             self.model.dirty = True
 
-    cpdef after(self, Timestep ts):
-        AbstractNode.after(self, ts)
+    cpdef after(self):
+        cdef Timestep ts = self.model.timestepper.current
         cdef int i
         cdef Node n
+        AbstractNode.after(self)
 
         for i, si in enumerate(self.model.scenarios.combinations):
             self._flow[i] = 0.0
@@ -700,10 +699,10 @@ cdef class AbstractStorage(AbstractNode):
         def __get__(self, ):
             return np.asarray(self._current_pc)
 
-    cpdef setup(self, model):
+    cpdef setup(self):
         """ Called before the first run of the model"""
-        AbstractNode.setup(self, model)
-        cdef int ncomb = len(model.scenarios.combinations)
+        AbstractNode.setup(self)
+        cdef int ncomb = len(self.model.scenarios.combinations)
         self._volume = np.zeros(ncomb, dtype=np.float64)
         self._current_pc = np.zeros(ncomb, dtype=np.float64)
 
@@ -846,11 +845,12 @@ cdef class Storage(AbstractStorage):
             except ZeroDivisionError:
                 self._current_pc[i] = np.nan
 
-    cpdef after(self, Timestep ts):
-        AbstractStorage.after(self, ts)
+    cpdef after(self):
+        cdef Timestep ts = self.model.timestepper.current
         cdef int i
         cdef double mxv = self._max_volume
         cdef ScenarioIndex si
+        AbstractStorage.after(self)
 
         for i, si in enumerate(self.model.scenarios.combinations):
             self._volume[i] += self._flow[i]*ts._days
@@ -899,11 +899,13 @@ cdef class AggregatedStorage(AbstractStorage):
             except ZeroDivisionError:
                 self._current_pc[i] = np.nan
 
-    cpdef after(self, Timestep ts):
-        AbstractStorage.after(self, ts)
+    cpdef after(self):
+        cdef Timestep ts = self.model.timestepper.current
         cdef int i
         cdef Storage s
         cdef double mxv
+        
+        AbstractStorage.after(self)
 
         for i, si in enumerate(self.model.scenarios.combinations):
             self._flow[i] = 0.0
@@ -947,13 +949,14 @@ cdef class VirtualStorage(Storage):
         def __set__(self, value):
             self._factors = np.array(value, dtype=np.float64)
 
-    cpdef after(self, Timestep ts):
+    cpdef after(self):
         cdef int i
         cdef ScenarioIndex si
         cdef AbstractNode n
+        cdef Timestep ts = self.model.timestepper.current
 
         for i, si in enumerate(self.model.scenarios.combinations):
             self._flow[i] = 0.0
             for n, f in zip(self._nodes, self._factors):
                 self._flow[i] -= f*n._flow[i]
-        Storage.after(self, ts)
+        Storage.after(self)
